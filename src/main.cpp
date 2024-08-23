@@ -36,7 +36,7 @@ extern "C" __declspec(dllexport) AddonDefinition *GetAddonDef()
     addon_def.Version.Major = 0;
     addon_def.Version.Minor = 1;
     addon_def.Version.Build = 0;
-    addon_def.Version.Revision = 1;
+    addon_def.Version.Revision = 2;
     addon_def.Author = "Seres67";
     addon_def.Description = "A Nexus addon manage screenshots in game.";
     addon_def.Load = addon_load;
@@ -70,6 +70,35 @@ void addon_load(AddonAPI *api_p)
     if (std::filesystem::exists(Settings::settings_path)) {
         Settings::load(Settings::settings_path);
         if (std::filesystem::exists(Settings::screenshots_path)) {
+            for (const auto &entry : std::filesystem::directory_iterator(Settings::screenshots_path)) {
+                if (entry.is_regular_file() &&
+                    std::ranges::find(Settings::screenshots, entry.path().filename().string(),
+                                      &Settings::Screenshot::name) == Settings::screenshots.end()) {
+                    if (entry.path().filename().string().find("gw") != std::string::npos) {
+                        const std::chrono::time_point now =
+                            std::chrono::zoned_time{std::chrono::current_zone(), std::chrono::system_clock::now()}
+                                .get_local_time();
+                        auto dp = std::chrono::floor<std::chrono::days>(now);
+                        const std::chrono::year_month_day ymd{dp};
+                        const std::chrono::hh_mm_ss<std::chrono::seconds> hms{
+                            std::chrono::floor<std::chrono::seconds>(now - dp)};
+                        std::string date = std::to_string(static_cast<int>(ymd.year())) + "-" +
+                                           std::to_string(static_cast<unsigned int>(ymd.month())) + "-" +
+                                           std::to_string(static_cast<unsigned int>(ymd.day())) + "_" +
+                                           std::to_string(hms.hours().count()) + "-" +
+                                           std::to_string(hms.minutes().count()) + "-" +
+                                           std::to_string(hms.seconds().count());
+                        std::string path = entry.path().string();
+                        path.erase(path.find_last_of("/\\") + 1);
+                        path.append(date + ".png");
+                        std::filesystem::rename(entry.path(), path);
+                        Settings::screenshots.emplace_back(date + ".png", path, Vector2{0, 0});
+                    } else {
+                        Settings::screenshots.emplace_back(entry.path().filename().string(), entry.path().string(),
+                                                           Vector2{0, 0});
+                    }
+                }
+            }
             for (auto &[name, path, position] : Settings::screenshots) {
                 const auto pos = name.find('.');
                 const auto identifier = std::string("SCREENSHOTS_IMAGE_").append(name.substr(0, pos));
@@ -100,27 +129,35 @@ void reload_screenshots()
     for (const auto &entry : std::filesystem::directory_iterator(Settings::screenshots_path)) {
         if (entry.is_regular_file() && std::ranges::find(Settings::screenshots, entry.path().filename().string(),
                                                          &Settings::Screenshot::name) == Settings::screenshots.end()) {
-            const std::chrono::time_point now = std::chrono::zoned_time{std::chrono::current_zone(),std::chrono::system_clock::now()}.get_local_time();
-            auto dp = std::chrono::floor<std::chrono::days>(now);
-            const std::chrono::year_month_day ymd{dp};
-            const std::chrono::hh_mm_ss<std::chrono::seconds> hms{std::chrono::floor<std::chrono::seconds>(now - dp)};
-            std::string date = std::to_string(static_cast<int>(ymd.year())) + "-" +
-                               std::to_string(static_cast<unsigned int>(ymd.month())) + "-" +
-                               std::to_string(static_cast<unsigned int>(ymd.day())) + "_" +
-                               std::to_string(hms.hours().count()) + "-" + std::to_string(hms.minutes().count()) + "-" +
-                               std::to_string(hms.seconds().count());
-            std::string path = entry.path().string();
-            path.erase(path.find_last_of("/\\") + 1);
-            path.append(date + ".png");
-            std::filesystem::rename(entry.path(), path);
-            Settings::screenshots.emplace_back(date + ".png", path, mumble_link->Context.Compass.PlayerPosition);
+            if (entry.path().filename().string().find("gw") != std::string::npos) {
+                const std::chrono::time_point now =
+                    std::chrono::zoned_time{std::chrono::current_zone(), std::chrono::system_clock::now()}
+                        .get_local_time();
+                auto dp = std::chrono::floor<std::chrono::days>(now);
+                const std::chrono::year_month_day ymd{dp};
+                const std::chrono::hh_mm_ss<std::chrono::seconds> hms{
+                    std::chrono::floor<std::chrono::seconds>(now - dp)};
+                std::string date = std::to_string(static_cast<int>(ymd.year())) + "-" +
+                                   std::to_string(static_cast<unsigned int>(ymd.month())) + "-" +
+                                   std::to_string(static_cast<unsigned int>(ymd.day())) + "_" +
+                                   std::to_string(hms.hours().count()) + "-" + std::to_string(hms.minutes().count()) +
+                                   "-" + std::to_string(hms.seconds().count());
+                std::string path = entry.path().string();
+                path.erase(path.find_last_of("/\\") + 1);
+                path.append(date + ".png");
+                std::filesystem::rename(entry.path(), path);
+                Settings::screenshots.emplace_back(date + ".png", path, mumble_link->Context.Compass.PlayerPosition);
+            }
         }
     }
+    Settings::json_settings[Settings::SCREENSHOTS] = Settings::screenshots;
+    Settings::save(Settings::settings_path);
 }
 
 bool tmp_open = true;
 void addon_render()
 {
+    ImGui::SetNextWindowPos(ImVec2(400, 600), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowBgAlpha(Settings::window_alpha);
     auto flags = ImGuiWindowFlags_NoCollapse;
     if (tmp_open && ImGui::Begin("Screenshots###ScreenshotsMainWindow", &tmp_open, flags)) {
