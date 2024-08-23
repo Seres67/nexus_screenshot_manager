@@ -1,0 +1,121 @@
+#include "globals.hpp"
+#include <fstream>
+#include <gui.hpp>
+#include <imgui/imgui_internal.h>
+#include <nexus/Nexus.h>
+#include <settings.hpp>
+#include <vector>
+#include <windows.h>
+
+void addon_load(AddonAPI *api_p);
+void addon_unload();
+void addon_render();
+void addon_options();
+
+BOOL APIENTRY dll_main(const HMODULE hModule, const DWORD ul_reason_for_call, LPVOID lpReserved)
+{
+    switch (ul_reason_for_call) {
+    case DLL_PROCESS_ATTACH:
+        self_module = hModule;
+        break;
+    case DLL_PROCESS_DETACH:
+    case DLL_THREAD_ATTACH:
+    case DLL_THREAD_DETACH:
+    default:
+        break;
+    }
+    return TRUE;
+}
+
+// NOLINTNEXTLINE(readability-identifier-naming)
+extern "C" __declspec(dllexport) AddonDefinition *GetAddonDef()
+{
+    addon_def.Signature = -912653496;
+    addon_def.APIVersion = NEXUS_API_VERSION;
+    addon_def.Name = addon_name;
+    addon_def.Version.Major = 0;
+    addon_def.Version.Minor = 1;
+    addon_def.Version.Build = 0;
+    addon_def.Version.Revision = 0;
+    addon_def.Author = "Seres67";
+    addon_def.Description = "A Nexus addon manage screenshots in game.";
+    addon_def.Load = addon_load;
+    addon_def.Unload = addon_unload;
+    addon_def.Flags = EAddonFlags_None;
+    addon_def.Provider = EUpdateProvider_GitHub;
+    addon_def.UpdateLink = "https://github.com/Seres67/nexus_screenshot_manager";
+
+    return &addon_def;
+}
+
+void addon_load(AddonAPI *api_p)
+{
+    api = api_p;
+
+    ImGui::SetCurrentContext(static_cast<ImGuiContext *>(api->ImguiContext));
+    ImGui::SetAllocatorFunctions(static_cast<void *(*)(size_t, void *)>(api->ImguiMalloc),
+                                 static_cast<void (*)(void *, void *)>(api->ImguiFree)); // on imgui 1.80+
+    api->Renderer.Register(ERenderType_Render, addon_render);
+    api->Renderer.Register(ERenderType_OptionsRender, addon_options);
+
+    Settings::settings_path = api->Paths.GetAddonDirectory("screenshots\\settings.json");
+    // C:\Users\seres\Documents\Guild Wars 2\Screens
+    auto userprofile = static_cast<char *>(malloc(10240));
+    size_t userprofile_size = 10240;
+    _dupenv_s(&userprofile, &userprofile_size, "USERPROFILE");
+    Settings::screenshots_path = userprofile + std::string("\\Documents\\Guild Wars 2\\Screens");
+    if (std::filesystem::exists(Settings::settings_path)) {
+        Settings::load(Settings::settings_path);
+        if (std::filesystem::exists(Settings::screenshots_path)) {
+            for (const std::filesystem::directory_iterator dir(Settings::screenshots_path); const auto &entry : dir) {
+                if (entry.is_regular_file()) {
+                    const auto pos = entry.path().filename().string().find('.');
+                    const auto identifier =
+                        std::string("SCREENSHOTS_IMAGE_").append(entry.path().filename().string().substr(0, pos));
+                    api->Textures.LoadFromFile(identifier.c_str(), entry.path().string().c_str(), texture_callback);
+                }
+            }
+        }
+    } else {
+        Settings::json_settings[Settings::IS_ADDON_ENABLED] = Settings::is_addon_enabled;
+        Settings::save(Settings::settings_path);
+    }
+    api->QuickAccess.Add("QA_SCREENSHOTS", "ICON_SCREENSHOTS", "ICON_SCREENSHOTS_HOVER", "KB_SCREENSHOTS_TOGGLE",
+                         "Screenshots");
+    api->Log(ELogLevel_INFO, addon_name, "addon loaded!");
+}
+
+void addon_unload()
+{
+    api->Log(ELogLevel_INFO, addon_name, "unloading addon...");
+    api->QuickAccess.Remove("QA_SCREENSHOTS");
+    api->Renderer.Deregister(addon_render);
+    api->Renderer.Deregister(addon_options);
+    api->Log(ELogLevel_INFO, addon_name, "addon unloaded!");
+    api = nullptr;
+}
+
+bool tmp_open = true;
+void addon_render()
+{
+    ImGui::SetNextWindowBgAlpha(Settings::window_alpha);
+    auto flags = ImGuiWindowFlags_NoCollapse;
+    if (tmp_open && ImGui::Begin("Screenshots###ScreenshotsMainWindow", &tmp_open, flags)) {
+        render_file_browser();
+        ImGui::SameLine(0, 0 * ImGui::GetStyle().ItemSpacing.x);
+        render_screenshot();
+        ImGui::End();
+    }
+}
+
+void addon_options()
+{
+    if (ImGui::Checkbox("Enabled##ScreenshotsEnabled", &Settings::is_addon_enabled)) {
+        Settings::json_settings[Settings::IS_ADDON_ENABLED] = Settings::is_addon_enabled;
+        Settings::save(Settings::settings_path);
+    }
+    if (ImGui::SliderFloat("Window Opacity##ScreenshotsOpacity", &Settings::window_alpha, 0.f, 1.f)) {
+        Settings::json_settings[Settings::WINDOW_ALPHA] = Settings::window_alpha;
+        Settings::save(Settings::settings_path);
+    }
+}
