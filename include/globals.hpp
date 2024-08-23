@@ -6,6 +6,7 @@
 #include <vector>
 #include <map>
 #include <imgui/imgui.h>
+#include <mumble/Mumble.h>
 
 // handle to self hmodule
 extern HMODULE self_module;
@@ -14,16 +15,13 @@ extern AddonDefinition addon_def;
 // addon api
 extern AddonAPI *api;
 
+extern NexusLinkData *nexus_link;
+extern Mumble::Data *mumble_link;
+
 extern char addon_name[];
 
 extern HWND game_handle;
 
-typedef struct
-{
-    std::string name;
-    std::string path;
-    std::string buffer;
-} File;
 
 extern std::map<std::string, Texture *> textures;
 

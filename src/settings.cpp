@@ -10,8 +10,8 @@ using json = nlohmann::json;
 namespace Settings
 {
 const char *IS_ADDON_ENABLED = "IsAddonEnabled";
-const char *IMAGES_PATH = "ImagesPath";
 const char *WINDOW_ALPHA = "WindowAlpha";
+const char *SCREENSHOTS = "Screenshots";
 
 json json_settings;
 std::mutex mutex;
@@ -20,6 +20,25 @@ std::filesystem::path settings_path;
 bool is_addon_enabled = true;
 std::filesystem::path screenshots_path;
 float window_alpha = 1.f;
+std::vector<Screenshot> screenshots;
+
+void from_json(const nlohmann::json &j, Screenshot &s)
+{
+    s.path = j.at("path").get<std::string>();
+    s.name = j.at("name").get<std::string>();
+    s.position.X = j.at("x").get<float>();
+    s.position.Y = j.at("y").get<float>();
+}
+
+void to_json(nlohmann::json &j, const Screenshot &s)
+{
+    j = json{
+        {"path", s.path},
+        {"name", s.name},
+        {"x", s.position.X},
+        {"y", s.position.Y},
+    };
+}
 
 void load(const std::filesystem::path &path)
 {
@@ -43,11 +62,11 @@ void load(const std::filesystem::path &path)
     if (!json_settings[IS_ADDON_ENABLED].is_null()) {
         json_settings[IS_ADDON_ENABLED].get_to(is_addon_enabled);
     }
-    if (!json_settings[IMAGES_PATH].is_null()) {
-        json_settings[IMAGES_PATH].get_to(screenshots_path);
-    }
     if (!json_settings[WINDOW_ALPHA].is_null()) {
         json_settings[WINDOW_ALPHA].get_to(window_alpha);
+    }
+    if (!json_settings[SCREENSHOTS].is_null()) {
+        json_settings[SCREENSHOTS].get_to(screenshots);
     }
     api->Log(ELogLevel_INFO, addon_name, "settings loaded!");
 }

@@ -1,6 +1,7 @@
 #ifndef SETTINGS_HPP
 #define SETTINGS_HPP
 
+#include <mumble/Mumble.h>
 #include <mutex>
 #include <nlohmann/json.hpp>
 
@@ -17,10 +18,19 @@ extern std::mutex mutex;
 extern bool is_addon_enabled;
 extern std::filesystem::path screenshots_path;
 extern float window_alpha;
+typedef struct
+{
+    std::string name;
+    std::string path;
+    Vector2 position;
+} Screenshot;
+extern std::vector<Screenshot> screenshots;
+void from_json(const nlohmann::json &j, Screenshot &s);
+void to_json(nlohmann::json &j, const Screenshot &s);
 
 extern const char *IS_ADDON_ENABLED;
-extern const char *IMAGES_PATH;
 extern const char *WINDOW_ALPHA;
+extern const char *SCREENSHOTS;
 } // namespace Settings
 
 #endif // SETTINGS_HPP

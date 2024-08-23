@@ -36,7 +36,7 @@ extern "C" __declspec(dllexport) AddonDefinition *GetAddonDef()
     addon_def.Version.Major = 0;
     addon_def.Version.Minor = 1;
     addon_def.Version.Build = 0;
-    addon_def.Version.Revision = 0;
+    addon_def.Version.Revision = 1;
     addon_def.Author = "Seres67";
     addon_def.Description = "A Nexus addon manage screenshots in game.";
     addon_def.Load = addon_load;
@@ -58,6 +58,9 @@ void addon_load(AddonAPI *api_p)
     api->Renderer.Register(ERenderType_Render, addon_render);
     api->Renderer.Register(ERenderType_OptionsRender, addon_options);
 
+    nexus_link = static_cast<NexusLinkData *>(api->DataLink.Get("DL_NEXUS_LINK"));
+    mumble_link = static_cast<Mumble::Data *>(api->DataLink.Get("DL_MUMBLE_LINK"));
+
     Settings::settings_path = api->Paths.GetAddonDirectory("screenshots\\settings.json");
     // C:\Users\seres\Documents\Guild Wars 2\Screens
     auto userprofile = static_cast<char *>(malloc(10240));
@@ -67,13 +70,10 @@ void addon_load(AddonAPI *api_p)
     if (std::filesystem::exists(Settings::settings_path)) {
         Settings::load(Settings::settings_path);
         if (std::filesystem::exists(Settings::screenshots_path)) {
-            for (const std::filesystem::directory_iterator dir(Settings::screenshots_path); const auto &entry : dir) {
-                if (entry.is_regular_file()) {
-                    const auto pos = entry.path().filename().string().find('.');
-                    const auto identifier =
-                        std::string("SCREENSHOTS_IMAGE_").append(entry.path().filename().string().substr(0, pos));
-                    api->Textures.LoadFromFile(identifier.c_str(), entry.path().string().c_str(), texture_callback);
-                }
+            for (auto &[name, path, position] : Settings::screenshots) {
+                const auto pos = name.find('.');
+                const auto identifier = std::string("SCREENSHOTS_IMAGE_").append(name.substr(0, pos));
+                api->Textures.LoadFromFile(identifier.c_str(), path.c_str(), texture_callback);
             }
         }
     } else {
@@ -95,12 +95,36 @@ void addon_unload()
     api = nullptr;
 }
 
+void reload_screenshots()
+{
+    for (const auto &entry : std::filesystem::directory_iterator(Settings::screenshots_path)) {
+        if (entry.is_regular_file() && std::ranges::find(Settings::screenshots, entry.path().filename().string(),
+                                                         &Settings::Screenshot::name) == Settings::screenshots.end()) {
+            const std::chrono::time_point now = std::chrono::zoned_time{std::chrono::current_zone(),std::chrono::system_clock::now()}.get_local_time();
+            auto dp = std::chrono::floor<std::chrono::days>(now);
+            const std::chrono::year_month_day ymd{dp};
+            const std::chrono::hh_mm_ss<std::chrono::seconds> hms{std::chrono::floor<std::chrono::seconds>(now - dp)};
+            std::string date = std::to_string(static_cast<int>(ymd.year())) + "-" +
+                               std::to_string(static_cast<unsigned int>(ymd.month())) + "-" +
+                               std::to_string(static_cast<unsigned int>(ymd.day())) + "_" +
+                               std::to_string(hms.hours().count()) + "-" + std::to_string(hms.minutes().count()) + "-" +
+                               std::to_string(hms.seconds().count());
+            std::string path = entry.path().string();
+            path.erase(path.find_last_of("/\\") + 1);
+            path.append(date + ".png");
+            std::filesystem::rename(entry.path(), path);
+            Settings::screenshots.emplace_back(date + ".png", path, mumble_link->Context.Compass.PlayerPosition);
+        }
+    }
+}
+
 bool tmp_open = true;
 void addon_render()
 {
     ImGui::SetNextWindowBgAlpha(Settings::window_alpha);
     auto flags = ImGuiWindowFlags_NoCollapse;
     if (tmp_open && ImGui::Begin("Screenshots###ScreenshotsMainWindow", &tmp_open, flags)) {
+        reload_screenshots();
         render_file_browser();
         ImGui::SameLine(0, 0 * ImGui::GetStyle().ItemSpacing.x);
         render_screenshot();
