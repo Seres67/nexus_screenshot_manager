@@ -32,8 +32,8 @@ include_directories(include)
 add_subdirectory(src/imgui)
 
 add_library(nexus_screenshot_manager SHARED src/main.cpp src/globals.cpp src/gui.cpp src/settings.cpp)
-target_link_libraries(nexus_screenshot_manager imgui)
 set_property(TARGET nexus_screenshot_manager PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+target_link_libraries(nexus_screenshot_manager imgui)
 
 # copy dll to game directory
 add_custom_command(TARGET nexus_screenshot_manager

@@ -9,8 +9,8 @@ version: 1.1.1
 @end
 
 * Todo
-- Attach meta data (gw2 coordinates) mostly done?
-- Automatically convert to a format (e.g. png)
+- Attach meta data (gw2 coordinates), mostly done?
+- Automatically convert to a format (e.g. png), done?
 - Automatically rename to a provided format
 - Automatically move to a different folder
-- Automatically rename to skip the 1k screenshot limit done?
+- Automatically rename to skip the 1k screenshot limit, done?

@@ -4,8 +4,6 @@
 #include <fstream>
 #include <globals.hpp>
 
-#include <nexus/Nexus.h>
-
 using json = nlohmann::json;
 namespace Settings
 {
