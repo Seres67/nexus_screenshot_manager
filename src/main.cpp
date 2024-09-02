@@ -81,8 +81,7 @@ void addon_load(AddonAPI *api_p)
                         path.erase(path.find_last_of("/\\") + 1);
                         std::string uuid = uuid_generator.getUUID().str();
                         std::filesystem::rename(entry.path(), path + uuid + ".jpg");
-                        Settings::screenshots.emplace_back(uuid + ".jpg", path + uuid + ".jpg",
-                                                           mumble_link->Context.Compass.PlayerPosition);
+                        Settings::screenshots.emplace_back(uuid + ".jpg", path + uuid + ".jpg", Vector2{0, 0});
                     } else {
                         Settings::screenshots.emplace_back(entry.path().filename().string(), entry.path().string(),
                                                            Vector2{0, 0});
