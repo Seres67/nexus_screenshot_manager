@@ -1,23 +1,24 @@
-#include "settings.hpp"
-#include "nlohmann/json.hpp"
 #include <filesystem>
 #include <fstream>
 #include <globals.hpp>
+#include <imgui/imgui.h>
+#include <nlohmann/json.hpp>
+#include <settings.hpp>
 
 using json = nlohmann::json;
 namespace Settings
 {
-const char *IS_ADDON_ENABLED = "IsAddonEnabled";
 const char *WINDOW_ALPHA = "WindowAlpha";
+const char *IMAGE_SCALE = "ImageScale";
 const char *SCREENSHOTS = "Screenshots";
 
 json json_settings;
 std::mutex mutex;
 std::filesystem::path settings_path;
 
-bool is_addon_enabled = true;
 std::filesystem::path screenshots_path;
 float window_alpha = 1.f;
+ImVec2 image_scale = {.33f, .33f};
 std::vector<Screenshot> screenshots;
 
 void from_json(const nlohmann::json &j, Screenshot &s)
@@ -57,14 +58,14 @@ void load(const std::filesystem::path &path)
             api->Log(ELogLevel_WARNING, addon_name, ex.what());
         }
     }
-    if (!json_settings[IS_ADDON_ENABLED].is_null()) {
-        json_settings[IS_ADDON_ENABLED].get_to(is_addon_enabled);
-    }
     if (!json_settings[WINDOW_ALPHA].is_null()) {
         json_settings[WINDOW_ALPHA].get_to(window_alpha);
     }
     if (!json_settings[SCREENSHOTS].is_null()) {
         json_settings[SCREENSHOTS].get_to(screenshots);
+    }
+    if (!json_settings[IMAGE_SCALE].is_null()) {
+        json_settings[IMAGE_SCALE].get_to(image_scale);
     }
     api->Log(ELogLevel_INFO, addon_name, "settings loaded!");
 }

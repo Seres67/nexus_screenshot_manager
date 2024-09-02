@@ -59,6 +59,7 @@ void render_screenshot()
             ImGui::EndChild();
             return;
         }
+        ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
         if (ImGui::SmallButton("Delete##ScreenshotDelete")) {
             if (selected_screenshot.empty())
                 return;
@@ -82,7 +83,8 @@ void render_screenshot()
             }
             if (textures[identifier] != nullptr)
                 ImGui::Image(textures[identifier]->Resource,
-                             ImVec2(static_cast<float>(textures[identifier]->Width) / 3, static_cast<float>(textures[identifier]->Height) / 3));
+                             ImVec2(static_cast<float>(textures[identifier]->Width) * Settings::image_scale.x,
+                                    static_cast<float>(textures[identifier]->Height) * Settings::image_scale.y));
         }
         ImGui::EndChild();
     }

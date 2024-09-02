@@ -1,4 +1,6 @@
 #include "globals.hpp"
+#include "nexus/Nexus.h"
+#include <filesystem>
 #include <gui.hpp>
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
@@ -36,7 +38,7 @@ extern "C" __declspec(dllexport) AddonDefinition *GetAddonDef()
     addon_def.Version.Major = 0;
     addon_def.Version.Minor = 1;
     addon_def.Version.Build = 0;
-    addon_def.Version.Revision = 3;
+    addon_def.Version.Revision = 4;
     addon_def.Author = "Seres67";
     addon_def.Description = "A Nexus addon manage screenshots in game.";
     addon_def.Load = addon_load;
@@ -75,24 +77,12 @@ void addon_load(AddonAPI *api_p)
                     std::ranges::find(Settings::screenshots, entry.path().filename().string(),
                                       &Settings::Screenshot::name) == Settings::screenshots.end()) {
                     if (entry.path().filename().string().find("gw") != std::string::npos) {
-                        const std::chrono::time_point now =
-                            std::chrono::zoned_time{std::chrono::current_zone(), std::chrono::system_clock::now()}
-                                .get_local_time();
-                        auto dp = std::chrono::floor<std::chrono::days>(now);
-                        const std::chrono::year_month_day ymd{dp};
-                        const std::chrono::hh_mm_ss<std::chrono::milliseconds> hms{
-                            std::chrono::floor<std::chrono::milliseconds>(now - dp)};
-                        std::string date =
-                            std::to_string(static_cast<int>(ymd.year())) + "-" +
-                            std::to_string(static_cast<unsigned int>(ymd.month())) + "-" +
-                            std::to_string(static_cast<unsigned int>(ymd.day())) + "_" +
-                            std::to_string(hms.hours().count()) + "-" + std::to_string(hms.minutes().count()) + "-" +
-                            std::to_string(hms.seconds().count()) + "-" + std::to_string(hms.subseconds().count());
                         std::string path = entry.path().string();
                         path.erase(path.find_last_of("/\\") + 1);
-                        path.append(date + ".jpg");
-                        std::filesystem::rename(entry.path(), path);
-                        Settings::screenshots.emplace_back(date + ".jpg", path, Vector2{0, 0});
+                        std::string uuid = uuid_generator.getUUID().str();
+                        std::filesystem::rename(entry.path(), path + uuid + ".jpg");
+                        Settings::screenshots.emplace_back(uuid + ".jpg", path + uuid + ".jpg",
+                                                           mumble_link->Context.Compass.PlayerPosition);
                     } else {
                         Settings::screenshots.emplace_back(entry.path().filename().string(), entry.path().string(),
                                                            Vector2{0, 0});
@@ -106,7 +96,6 @@ void addon_load(AddonAPI *api_p)
             }
         }
     } else {
-        Settings::json_settings[Settings::IS_ADDON_ENABLED] = Settings::is_addon_enabled;
         Settings::save(Settings::settings_path);
     }
     api->QuickAccess.Add("QA_SCREENSHOTS", "ICON_SCREENSHOTS", "ICON_SCREENSHOTS_HOVER", "KB_SCREENSHOTS_TOGGLE",
@@ -130,26 +119,22 @@ void reload_screenshots()
         if (entry.is_regular_file() && std::ranges::find(Settings::screenshots, entry.path().filename().string(),
                                                          &Settings::Screenshot::name) == Settings::screenshots.end()) {
             if (entry.path().filename().string().find("gw") != std::string::npos) {
-                const std::chrono::time_point now =
-                    std::chrono::zoned_time{std::chrono::current_zone(), std::chrono::system_clock::now()}
-                        .get_local_time();
-                auto dp = std::chrono::floor<std::chrono::days>(now);
-                const std::chrono::year_month_day ymd{dp};
-                const std::chrono::hh_mm_ss<std::chrono::milliseconds> hms{
-                    std::chrono::floor<std::chrono::milliseconds>(now - dp)};
-                std::string date = std::to_string(static_cast<int>(ymd.year())) + "-" +
-                                   std::to_string(static_cast<unsigned int>(ymd.month())) + "-" +
-                                   std::to_string(static_cast<unsigned int>(ymd.day())) + "_" +
-                                   std::to_string(hms.hours().count()) + "-" + std::to_string(hms.minutes().count()) +
-                                   "-" + std::to_string(hms.seconds().count()) + "-" +
-                                   std::to_string(hms.subseconds().count());
                 std::string path = entry.path().string();
                 path.erase(path.find_last_of("/\\") + 1);
-                path.append(date + ".jpg");
-                std::filesystem::rename(entry.path(), path);
-                Settings::screenshots.emplace_back(date + ".jpg", path, mumble_link->Context.Compass.PlayerPosition);
+                std::string uuid = uuid_generator.getUUID().str();
+                std::filesystem::rename(entry.path(), path + uuid + ".jpg");
+                Settings::screenshots.emplace_back(uuid + ".jpg", path + uuid + ".jpg",
+                                                   mumble_link->Context.Compass.PlayerPosition);
                 Settings::json_settings[Settings::SCREENSHOTS] = Settings::screenshots;
                 Settings::save(Settings::settings_path);
+            } else {
+                if (!std::filesystem::exists(entry.path().string())) {
+                    auto pos =
+                        std::ranges::find(Settings::screenshots, entry.path().string(), &Settings::Screenshot::path);
+                    Settings::screenshots.erase(pos);
+                    Settings::json_settings[Settings::SCREENSHOTS] = Settings::screenshots;
+                    Settings::save(Settings::settings_path);
+                }
             }
         }
     }
@@ -171,12 +156,12 @@ void addon_render()
 
 void addon_options()
 {
-    if (ImGui::Checkbox("Enabled##ScreenshotsEnabled", &Settings::is_addon_enabled)) {
-        Settings::json_settings[Settings::IS_ADDON_ENABLED] = Settings::is_addon_enabled;
-        Settings::save(Settings::settings_path);
-    }
     if (ImGui::SliderFloat("Window Opacity##ScreenshotsOpacity", &Settings::window_alpha, 0.f, 1.f)) {
         Settings::json_settings[Settings::WINDOW_ALPHA] = Settings::window_alpha;
+        Settings::save(Settings::settings_path);
+    }
+    if (ImGui::SliderFloat2("Image Scale##ScreenshotsScale", &Settings::image_scale.x, 0.f, 2.f)) {
+        Settings::json_settings[Settings::IMAGE_SCALE] = Settings::image_scale;
         Settings::save(Settings::settings_path);
     }
 }
