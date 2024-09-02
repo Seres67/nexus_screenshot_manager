@@ -1,5 +1,3 @@
-⚠️ can/will destroy your screenshots ⚠️
-
 # Nexus Screenshot Manager
 
 A Nexus addon to manage screenshots in game.
