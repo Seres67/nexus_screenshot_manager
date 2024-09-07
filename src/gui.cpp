@@ -1,7 +1,9 @@
 #include "gui.hpp"
 #include "globals.hpp"
 #include "stbi/stbi.hpp"
+#include <filesystem>
 #include <imgui/imgui.h>
+#include <imgui/misc/cpp/imgui_stdlib.h>
 #include <settings.hpp>
 
 void texture_callback(const char *identifier, Texture *texture)
@@ -24,7 +26,8 @@ void render_file_browser()
     }
 }
 
-bool editing_text = false;
+bool renaming = false;
+std::string new_name;
 void render_screenshot()
 {
     if (!selected_screenshot.empty() && ImGui::BeginChild("##ScreenshotViewer", {0, 0}, true)) {
@@ -34,8 +37,8 @@ void render_screenshot()
             ImGui::SmallButton("Convert to PNG##ScreenshotConvert")) {
             if (selected_screenshot.empty())
                 return;
-            const std::string path = Settings::screenshots_path.string() + "\\" + selected_screenshot;
-            std::string path_png = Settings::screenshots_path.string() + "\\" + selected_screenshot;
+            const std::string path = (Settings::screenshots_path / selected_screenshot).string();
+            std::string path_png = (Settings::screenshots_path / selected_screenshot).string();
             path_png.replace(path_png.find_last_of('.'), 4, ".png");
             auto name_png = std::string(selected_screenshot);
             name_png.replace(name_png.find_last_of('.'), 4, ".png");
@@ -60,6 +63,13 @@ void render_screenshot()
             return;
         }
         ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
+        if (ImGui::SmallButton("Rename##ScreenshotRename")) {
+            if (selected_screenshot.empty())
+                return;
+            new_name = selected_screenshot;
+            renaming = true;
+        }
+        ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
         if (ImGui::SmallButton("Delete##ScreenshotDelete")) {
             if (selected_screenshot.empty())
                 return;
@@ -72,6 +82,22 @@ void render_screenshot()
             ImGui::EndChild();
             return;
         }
+        if (renaming) {
+            ImGui::InputText("New Name##ScreenshotRenameInput", &new_name);
+            ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
+            if (ImGui::SmallButton("Confirm##ScreenshotConfirmRename")) {
+                std::filesystem::rename(Settings::screenshots_path / selected_screenshot,
+                                        Settings::screenshots_path / new_name);
+                new_name.clear();
+                renaming = false;
+            }
+            ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
+            if (ImGui::SmallButton("Cancel##ScreenshotCancelRename")) {
+                new_name.clear();
+                renaming = false;
+            }
+        }
+
         const auto screenshot =
             std::ranges::find(Settings::screenshots, selected_screenshot, &Settings::Screenshot::name);
         ImGui::Text("Taken at: %f %f", screenshot->position.X, screenshot->position.Y);

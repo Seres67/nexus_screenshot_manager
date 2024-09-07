@@ -1,4 +1,5 @@
 #include "globals.hpp"
+#include "mumble/Mumble.h"
 #include "nexus/Nexus.h"
 #include <filesystem>
 #include <gui.hpp>
@@ -37,9 +38,9 @@ extern "C" __declspec(dllexport) AddonDefinition *GetAddonDef()
     addon_def.APIVersion = NEXUS_API_VERSION;
     addon_def.Name = addon_name;
     addon_def.Version.Major = 0;
-    addon_def.Version.Minor = 1;
+    addon_def.Version.Minor = 2;
     addon_def.Version.Build = 0;
-    addon_def.Version.Revision = 5;
+    addon_def.Version.Revision = 0;
     addon_def.Author = "Seres67";
     addon_def.Description = "A Nexus addon manage screenshots in game.";
     addon_def.Load = addon_load;
@@ -49,6 +50,25 @@ extern "C" __declspec(dllexport) AddonDefinition *GetAddonDef()
     addon_def.UpdateLink = "https://github.com/Seres67/nexus_screenshot_manager";
 
     return &addon_def;
+}
+
+void add_screenshot(const std::filesystem::directory_entry &entry, const Vector2 &location = {0, 0})
+{
+    std::string path = entry.path().string();
+    path.erase(path.find_last_of("/\\") + 1);
+    const std::chrono::time_point now =
+        std::chrono::zoned_time{std::chrono::current_zone(), std::chrono::system_clock::now()}.get_local_time();
+    auto dp = std::chrono::floor<std::chrono::days>(now);
+    const std::chrono::year_month_day ymd{dp};
+    const std::chrono::hh_mm_ss<std::chrono::milliseconds> hms{std::chrono::floor<std::chrono::milliseconds>(now - dp)};
+    std::string date = std::to_string(static_cast<int>(ymd.year())) + "-" +
+                       std::to_string(static_cast<unsigned int>(ymd.month())) + "-" +
+                       std::to_string(static_cast<unsigned int>(ymd.day())) + "_" +
+                       std::to_string(hms.hours().count()) + "-" + std::to_string(hms.minutes().count()) + "-" +
+                       std::to_string(hms.seconds().count()) + "-" + std::to_string(hms.subseconds().count());
+    std::string uuid = uuid_generator.getUUID().str();
+    std::filesystem::rename(entry.path(), path + date + "-" + uuid + ".jpg");
+    Settings::screenshots.emplace_back(date + "-" + uuid + ".jpg", path + date + "-" + uuid + ".jpg", location);
 }
 
 void addon_load(AddonAPI *api_p)
@@ -72,28 +92,27 @@ void addon_load(AddonAPI *api_p)
     Settings::screenshots_path = userprofile + std::string("\\Documents\\Guild Wars 2\\Screens");
     if (std::filesystem::exists(Settings::settings_path)) {
         Settings::load(Settings::settings_path);
-        if (std::filesystem::exists(Settings::screenshots_path)) {
-            for (const auto &entry : std::filesystem::directory_iterator(Settings::screenshots_path)) {
-                if (entry.is_regular_file() &&
-                    std::ranges::find(Settings::screenshots, entry.path().filename().string(),
+        if (std::filesystem::exists(Settings::screenshots_path))
+            Settings::screenshots.erase(std::remove_if(Settings::screenshots.begin(), Settings::screenshots.end(),
+                                                       [](const Settings::Screenshot &sc) -> bool
+                                                       { return !std::filesystem::exists(sc.path); }),
+                                        Settings::screenshots.end());
+        for (const auto &entry : std::filesystem::directory_iterator(Settings::screenshots_path)) {
+            if (entry.is_regular_file()) {
+                if (std::ranges::find(Settings::screenshots, entry.path().filename().string(),
                                       &Settings::Screenshot::name) == Settings::screenshots.end()) {
-                    if (entry.path().filename().string().find("gw") != std::string::npos) {
-                        std::string path = entry.path().string();
-                        path.erase(path.find_last_of("/\\") + 1);
-                        std::string uuid = uuid_generator.getUUID().str();
-                        std::filesystem::rename(entry.path(), path + uuid + ".jpg");
-                        Settings::screenshots.emplace_back(uuid + ".jpg", path + uuid + ".jpg", Vector2{0, 0});
-                    } else {
+                    if (entry.path().filename().string().find("gw") != std::string::npos)
+                        add_screenshot(entry);
+                    else
                         Settings::screenshots.emplace_back(entry.path().filename().string(), entry.path().string(),
                                                            Vector2{0, 0});
-                    }
                 }
             }
-            for (auto &[name, path, position] : Settings::screenshots) {
-                const auto pos = name.find('.');
-                const auto identifier = std::string("SCREENSHOTS_IMAGE_").append(name.substr(0, pos));
-                api->Textures.LoadFromFile(identifier.c_str(), path.c_str(), texture_callback);
-            }
+        }
+        for (auto &[name, path, position] : Settings::screenshots) {
+            const auto pos = name.find('.');
+            const auto identifier = std::string("SCREENSHOTS_IMAGE_").append(name.substr(0, pos));
+            api->Textures.LoadFromFile(identifier.c_str(), path.c_str(), texture_callback);
         }
     } else {
         Settings::save(Settings::settings_path);
@@ -121,12 +140,7 @@ void reload_screenshots()
         if (entry.is_regular_file() && std::ranges::find(Settings::screenshots, entry.path().filename().string(),
                                                          &Settings::Screenshot::name) == Settings::screenshots.end()) {
             if (entry.path().filename().string().find("gw") != std::string::npos) {
-                std::string path = entry.path().string();
-                path.erase(path.find_last_of("/\\") + 1);
-                std::string uuid = uuid_generator.getUUID().str();
-                std::filesystem::rename(entry.path(), path + uuid + ".jpg");
-                Settings::screenshots.emplace_back(uuid + ".jpg", path + uuid + ".jpg",
-                                                   mumble_link->Context.Compass.PlayerPosition);
+                add_screenshot(entry, mumble_link->Context.Compass.PlayerPosition);
                 Settings::json_settings[Settings::SCREENSHOTS] = Settings::screenshots;
                 Settings::save(Settings::settings_path);
             } else {
@@ -145,10 +159,10 @@ void reload_screenshots()
 bool tmp_open = false;
 void addon_render()
 {
+    reload_screenshots();
     ImGui::SetNextWindowPos(ImVec2(400, 600), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowBgAlpha(Settings::window_alpha);
     if (tmp_open && ImGui::Begin("Screenshots###ScreenshotsMainWindow", &tmp_open, ImGuiWindowFlags_NoCollapse)) {
-        reload_screenshots();
         render_file_browser();
         ImGui::SameLine(0, 0 * ImGui::GetStyle().ItemSpacing.x);
         render_screenshot();
