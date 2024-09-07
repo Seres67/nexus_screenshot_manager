@@ -13,13 +13,13 @@ void texture_callback(const char *identifier, Texture *texture)
     textures[identifier] = texture;
 }
 
-std::string selected_screenshot;
+int screenshot_index = -1;
 void render_file_browser()
 {
     if (ImGui::BeginChild("##ScreenshotFS", {150, -FLT_MIN}, true)) {
-        for (const auto &[name, path, position] : Settings::screenshots) {
-            if (ImGui::Selectable(name.c_str(), selected_screenshot == name)) {
-                selected_screenshot = name;
+        for (int i = 0; i < Settings::screenshots.size(); i++) {
+            if (ImGui::Selectable(Settings::screenshots[i].name.c_str(), i == screenshot_index)) {
+                screenshot_index = i;
             }
         }
         ImGui::EndChild();
@@ -30,17 +30,22 @@ bool renaming = false;
 std::string new_name;
 void render_screenshot()
 {
-    if (!selected_screenshot.empty() && ImGui::BeginChild("##ScreenshotViewer", {0, 0}, true)) {
-        ImGui::Text("%s", selected_screenshot.c_str());
+    Settings::Screenshot selected_screenshot;
+    if (screenshot_index == -1)
+        selected_screenshot = {};
+    else
+        selected_screenshot = Settings::screenshots[screenshot_index];
+    if (ImGui::BeginChild("##ScreenshotViewer", {0, 0}, true)) {
+        ImGui::Text("%s", selected_screenshot.name.c_str());
         ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
-        if (selected_screenshot.find(".png") == std::string::npos &&
+        if (selected_screenshot.name.find(".png") == std::string::npos &&
             ImGui::SmallButton("Convert to PNG##ScreenshotConvert")) {
-            if (selected_screenshot.empty())
+            if (selected_screenshot.name.empty())
                 return;
-            const std::string path = (Settings::screenshots_path / selected_screenshot).string();
-            std::string path_png = (Settings::screenshots_path / selected_screenshot).string();
+            const std::string path = (Settings::screenshots_path / selected_screenshot.name).string();
+            std::string path_png = (Settings::screenshots_path / selected_screenshot.name).string();
             path_png.replace(path_png.find_last_of('.'), 4, ".png");
-            auto name_png = std::string(selected_screenshot);
+            auto name_png = std::string(selected_screenshot.name);
             name_png.replace(name_png.find_last_of('.'), 4, ".png");
             int x, y, n;
             const auto img = stbi_load(path.c_str(), &x, &y, &n, 0);
@@ -51,12 +56,10 @@ void render_screenshot()
             }
             stbi_write_png(path_png.c_str(), x, y, n, img, x * n);
             stbi_image_free(img);
-            const auto out = std::ranges::find(Settings::screenshots, selected_screenshot, &Settings::Screenshot::name);
-            Settings::screenshots.emplace_back(name_png, path_png, out->position);
+            Settings::screenshots.emplace_back(name_png, path_png, selected_screenshot.position);
             std::filesystem::remove(path.c_str());
-            Settings::screenshots.erase(
-                std::ranges::find(Settings::screenshots, selected_screenshot, &Settings::Screenshot::name));
-            selected_screenshot = name_png;
+            Settings::screenshots.erase(Settings::screenshots.begin() + screenshot_index);
+            screenshot_index = -1;
             Settings::json_settings[Settings::SCREENSHOTS] = Settings::screenshots;
             Settings::save(Settings::settings_path);
             ImGui::EndChild();
@@ -64,21 +67,20 @@ void render_screenshot()
         }
         ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
         if (ImGui::SmallButton("Rename##ScreenshotRename")) {
-            if (selected_screenshot.empty())
+            if (selected_screenshot.name.empty())
                 return;
-            new_name = selected_screenshot;
+            new_name = selected_screenshot.name;
             renaming = true;
         }
         ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
         if (ImGui::SmallButton("Delete##ScreenshotDelete")) {
-            if (selected_screenshot.empty())
+            if (selected_screenshot.name.empty())
                 return;
-            std::filesystem::remove(Settings::screenshots_path.string() + "\\" + selected_screenshot);
-            Settings::screenshots.erase(
-                std::ranges::find(Settings::screenshots, selected_screenshot, &Settings::Screenshot::name));
+            std::filesystem::remove(Settings::screenshots_path / selected_screenshot.name);
+            Settings::screenshots.erase(Settings::screenshots.begin() + screenshot_index);
             Settings::json_settings[Settings::SCREENSHOTS] = Settings::screenshots;
             Settings::save(Settings::settings_path);
-            selected_screenshot.clear();
+            screenshot_index = -1;
             ImGui::EndChild();
             return;
         }
@@ -86,8 +88,25 @@ void render_screenshot()
             ImGui::InputText("New Name##ScreenshotRenameInput", &new_name);
             ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
             if (ImGui::SmallButton("Confirm##ScreenshotConfirmRename")) {
-                std::filesystem::rename(Settings::screenshots_path / selected_screenshot,
+                if (selected_screenshot.name.find(".jpg") != std::string::npos) {
+                    if (new_name.find(".jpg") == std::string::npos) {
+                        new_name.append(".jpg");
+                    }
+                } else if (selected_screenshot.name.find(".png") != std::string::npos) {
+                    if (new_name.find(".png") == std::string::npos) {
+                        new_name.append(".png");
+                    }
+                }
+                std::filesystem::rename(Settings::screenshots_path / selected_screenshot.name,
                                         Settings::screenshots_path / new_name);
+                Settings::screenshots.emplace_back(new_name, (Settings::screenshots_path / new_name).string(),
+                                                   selected_screenshot.position);
+                Settings::screenshots.erase(Settings::screenshots.begin() + screenshot_index);
+                selected_screenshot = Settings::screenshots.back();
+                screenshot_index = Settings::screenshots.size() - 1;
+                Settings::json_settings[Settings::SCREENSHOTS] = Settings::screenshots;
+                Settings::save(Settings::settings_path);
+
                 new_name.clear();
                 renaming = false;
             }
@@ -98,14 +117,13 @@ void render_screenshot()
             }
         }
 
-        const auto screenshot =
-            std::ranges::find(Settings::screenshots, selected_screenshot, &Settings::Screenshot::name);
-        ImGui::Text("Taken at: %f %f", screenshot->position.X, screenshot->position.Y);
-        if (const auto pos = selected_screenshot.find('.'); pos != std::string::npos) {
-            const std::string identifier = std::string("SCREENSHOTS_IMAGE_").append(selected_screenshot.substr(0, pos));
+        ImGui::Text("Taken at: %f %f", selected_screenshot.position.X, selected_screenshot.position.Y);
+        if (const auto pos = selected_screenshot.name.find('.'); pos != std::string::npos) {
+            const std::string identifier =
+                std::string("SCREENSHOTS_IMAGE_").append(selected_screenshot.name.substr(0, pos));
             if (!textures.contains(identifier)) {
-                const std::string file_path = Settings::screenshots_path.string() + "\\" + selected_screenshot;
-                api->Textures.LoadFromFile(identifier.c_str(), file_path.c_str(), texture_callback);
+                const std::filesystem::path file_path = Settings::screenshots_path / selected_screenshot.name;
+                api->Textures.LoadFromFile(identifier.c_str(), file_path.string().c_str(), texture_callback);
             }
             if (textures[identifier] != nullptr)
                 ImGui::Image(textures[identifier]->Resource,

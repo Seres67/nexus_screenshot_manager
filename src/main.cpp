@@ -40,7 +40,7 @@ extern "C" __declspec(dllexport) AddonDefinition *GetAddonDef()
     addon_def.Version.Major = 0;
     addon_def.Version.Minor = 2;
     addon_def.Version.Build = 0;
-    addon_def.Version.Revision = 0;
+    addon_def.Version.Revision = 1;
     addon_def.Author = "Seres67";
     addon_def.Description = "A Nexus addon manage screenshots in game.";
     addon_def.Load = addon_load;
