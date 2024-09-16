@@ -19,6 +19,7 @@ extern std::mutex mutex;
 extern std::filesystem::path screenshots_path;
 extern float window_alpha;
 extern ImVec2 image_scale;
+extern bool bypass_screenshots_limit;
 typedef struct
 {
     std::string name;
@@ -32,6 +33,7 @@ void to_json(nlohmann::json &j, const Screenshot &s);
 extern const char *WINDOW_ALPHA;
 extern const char *SCREENSHOTS;
 extern const char *IMAGE_SCALE;
+extern const char *BYPASS_SCREENSHOTS_LIMIT;
 } // namespace Settings
 
 #endif // SETTINGS_HPP

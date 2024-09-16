@@ -10,15 +10,17 @@ namespace Settings
 {
 const char *WINDOW_ALPHA = "WindowAlpha";
 const char *IMAGE_SCALE = "ImageScale";
+const char *BYPASS_SCREENSHOTS_LIMIT = "BypassScreenshotsLimit";
 const char *SCREENSHOTS = "Screenshots";
 
 json json_settings;
 std::mutex mutex;
 std::filesystem::path settings_path;
-
 std::filesystem::path screenshots_path;
+
 float window_alpha = 1.f;
 ImVec2 image_scale = {.33f, .33f};
+bool bypass_screenshots_limit = false;
 std::vector<Screenshot> screenshots;
 
 void from_json(const nlohmann::json &j, Screenshot &s)
@@ -61,11 +63,14 @@ void load(const std::filesystem::path &path)
     if (!json_settings[WINDOW_ALPHA].is_null()) {
         json_settings[WINDOW_ALPHA].get_to(window_alpha);
     }
-    if (!json_settings[SCREENSHOTS].is_null()) {
-        json_settings[SCREENSHOTS].get_to(screenshots);
-    }
     if (!json_settings[IMAGE_SCALE].is_null()) {
         json_settings[IMAGE_SCALE].get_to(image_scale);
+    }
+    if (!json_settings[BYPASS_SCREENSHOTS_LIMIT].is_null()) {
+        json_settings[BYPASS_SCREENSHOTS_LIMIT].get_to(bypass_screenshots_limit);
+    }
+    if (!json_settings[SCREENSHOTS].is_null()) {
+        json_settings[SCREENSHOTS].get_to(screenshots);
     }
     api->Log(ELogLevel_INFO, addon_name, "settings loaded!");
 }
