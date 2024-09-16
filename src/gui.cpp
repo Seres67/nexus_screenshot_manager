@@ -31,8 +31,10 @@ std::string new_name;
 void render_screenshot()
 {
     Settings::Screenshot selected_screenshot;
-    if (screenshot_index == -1)
+    if (screenshot_index == -1) {
         selected_screenshot = {};
+        return;
+    }
     else
         selected_screenshot = Settings::screenshots[screenshot_index];
     if (ImGui::BeginChild("##ScreenshotViewer", {0, 0}, true)) {

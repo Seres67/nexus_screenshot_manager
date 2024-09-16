@@ -40,7 +40,7 @@ extern "C" __declspec(dllexport) AddonDefinition *GetAddonDef()
     addon_def.Version.Major = 0;
     addon_def.Version.Minor = 2;
     addon_def.Version.Build = 0;
-    addon_def.Version.Revision = 2;
+    addon_def.Version.Revision = 3;
     addon_def.Author = "Seres67";
     addon_def.Description = "A Nexus addon manage screenshots in game.";
     addon_def.Load = addon_load;
@@ -203,7 +203,7 @@ void addon_options()
         Settings::json_settings[Settings::IMAGE_SCALE] = Settings::image_scale;
         Settings::save(Settings::settings_path);
     }
-    ImGui::Text("WARNING: when ticked, screenshots will be automatically renamed to \"date-time-uuid.jpg\".");
+    ImGui::TextColored(ImVec4(1, 1, 0, 1), "WARNING: when ticked, screenshots will be automatically renamed to \"date-time-uuid.jpg\".");
     if (ImGui::Checkbox("Bypass Screenshots Limit##ScreenshotsLimit", &Settings::bypass_screenshots_limit)) {
         Settings::json_settings[Settings::BYPASS_SCREENSHOTS_LIMIT] = Settings::bypass_screenshots_limit;
         Settings::save(Settings::settings_path);
