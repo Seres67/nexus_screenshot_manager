@@ -59,16 +59,17 @@ void add_screenshot(const std::filesystem::directory_entry &entry, const Vector2
         path.erase(path.find_last_of("/\\") + 1);
         const std::chrono::time_point now =
             std::chrono::zoned_time{std::chrono::current_zone(), std::chrono::system_clock::now()}.get_local_time();
-        auto dp = std::chrono::floor<std::chrono::days>(now);
+        const auto dp = std::chrono::floor<std::chrono::days>(now);
         const std::chrono::year_month_day ymd{dp};
         const std::chrono::hh_mm_ss<std::chrono::milliseconds> hms{
             std::chrono::floor<std::chrono::milliseconds>(now - dp)};
-        std::string date = std::to_string(static_cast<int>(ymd.year())) + "-" +
-                           std::to_string(static_cast<unsigned int>(ymd.month())) + "-" +
-                           std::to_string(static_cast<unsigned int>(ymd.day())) + "_" +
-                           std::to_string(hms.hours().count()) + "-" + std::to_string(hms.minutes().count()) + "-" +
-                           std::to_string(hms.seconds().count()) + "-" + std::to_string(hms.subseconds().count());
-        std::string uuid = uuid_generator.getUUID().str();
+        const std::string date = std::to_string(static_cast<int>(ymd.year())) + "-" +
+                                 std::to_string(static_cast<unsigned int>(ymd.month())) + "-" +
+                                 std::to_string(static_cast<unsigned int>(ymd.day())) + "_" +
+                                 std::to_string(hms.hours().count()) + "-" + std::to_string(hms.minutes().count()) +
+                                 "-" + std::to_string(hms.seconds().count()) + "-" +
+                                 std::to_string(hms.subseconds().count());
+        const std::string uuid = uuid_generator.getUUID().str();
         std::filesystem::rename(entry.path(), path + date + "-" + uuid + ".jpg");
         Settings::screenshots.emplace_back(date + "-" + uuid + ".jpg", path + date + "-" + uuid + ".jpg", location);
     } else {
@@ -99,10 +100,8 @@ void addon_load(AddonAPI *api_p)
     if (std::filesystem::exists(Settings::settings_path)) {
         Settings::load(Settings::settings_path);
         if (std::filesystem::exists(Settings::screenshots_path))
-            Settings::screenshots.erase(std::remove_if(Settings::screenshots.begin(), Settings::screenshots.end(),
-                                                       [](const Settings::Screenshot &sc) -> bool
-                                                       { return !std::filesystem::exists(sc.path); }),
-                                        Settings::screenshots.end());
+            std::erase_if(Settings::screenshots,
+                          [](const Settings::Screenshot &sc) -> bool { return !std::filesystem::exists(sc.path); });
         for (const auto &entry : std::filesystem::directory_iterator(Settings::screenshots_path)) {
             if (entry.is_regular_file()) {
                 if (std::ranges::find(Settings::screenshots, entry.path().filename().string(),
@@ -168,7 +167,7 @@ void reload_screenshots()
             } else {
                 // TODO: wtf is this? needs to change.
                 if (!std::filesystem::exists(entry.path().string())) {
-                    auto pos =
+                    const auto pos =
                         std::ranges::find(Settings::screenshots, entry.path().string(), &Settings::Screenshot::path);
                     Settings::screenshots.erase(pos);
                     Settings::json_settings[Settings::SCREENSHOTS] = Settings::screenshots;
@@ -203,7 +202,8 @@ void addon_options()
         Settings::json_settings[Settings::IMAGE_SCALE] = Settings::image_scale;
         Settings::save(Settings::settings_path);
     }
-    ImGui::TextColored(ImVec4(1, 1, 0, 1), "WARNING: when ticked, screenshots will be automatically renamed to \"date-time-uuid.jpg\".");
+    ImGui::TextColored(ImVec4(1, 1, 0, 1),
+                       "WARNING: when ticked, screenshots will be automatically renamed to \"date-time-uuid.jpg\".");
     if (ImGui::Checkbox("Bypass Screenshots Limit##ScreenshotsLimit", &Settings::bypass_screenshots_limit)) {
         Settings::json_settings[Settings::BYPASS_SCREENSHOTS_LIMIT] = Settings::bypass_screenshots_limit;
         Settings::save(Settings::settings_path);

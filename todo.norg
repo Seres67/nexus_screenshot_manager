@@ -14,3 +14,4 @@ version: 1.1.1
 - Automatically rename to a provided format
 - Automatically move to a different folder
 - Automatically rename to skip the 1k screenshot limit, done?
+- Add confirm modal to delete button

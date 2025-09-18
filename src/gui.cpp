@@ -16,7 +16,7 @@ void texture_callback(const char *identifier, Texture *texture)
 int screenshot_index = -1;
 void render_file_browser()
 {
-    if (ImGui::BeginChild("##ScreenshotFS", {150, -FLT_MIN}, true)) {
+    if (ImGui::BeginChild("##ScreenshotFS", {250, -FLT_MIN}, true)) {
         for (int i = 0; i < Settings::screenshots.size(); i++) {
             if (ImGui::Selectable(Settings::screenshots[i].name.c_str(), i == screenshot_index)) {
                 screenshot_index = i;
